@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScoutAI — スカウト文面生成</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14; --surface: #161920; --surface2: #1e2230; --border: #2a2f42;
+    --accent: #4f7eff; --accent2: #7c5cfc; --gold: #f0c040; --text: #e8eaf2;
+    --text-sub: #7b82a0; --success: #3ecf8e; --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Noto Sans JP', sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 12px; padding: 18px 28px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .logo-mark { width: 34px; height: 34px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: #fff; }
+  .logo-text { font-size: 17px; font-weight: 700; }
+  .logo-text span { color: var(--accent); }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .badge { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text-sub); background: var(--surface2); border: 1px solid var(--border); padding: 4px 10px; border-radius: 20px; }
+  .sync-btn { font-size: 11px; font-family: 'Noto Sans JP', monospace; color: var(--accent); background: rgba(79,126,255,0.1); border: 1px solid rgba(79,126,255,0.3); padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
+  .sync-btn:hover { background: rgba(79,126,255,0.2); }
+  .sync-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .main { display: grid; grid-template-columns: 440px 1fr; flex: 1; overflow: hidden; min-height: 0; }
+  .panel-left { padding: 24px; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 18px; overflow-y: auto; }
+  .section-label { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-sub); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+  .api-notice { background: rgba(240,192,64,0.07); border: 1px solid rgba(240,192,64,0.25); border-radius: var(--radius); padding: 12px 14px; font-size: 12px; color: var(--gold); line-height: 1.6; }
+  .api-notice input { margin-top: 8px; width: 100%; background: #0d0f14; border: 1px solid rgba(240,192,64,0.3); border-radius: 6px; color: #e8eaf2; font-size: 12px; padding: 6px 10px; outline: none; font-family: 'DM Mono', monospace; }
+  textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: 'Noto Sans JP', sans-serif; font-size: 13px; line-height: 1.7; padding: 14px; resize: vertical; outline: none; transition: border-color 0.2s; min-height: 200px; }
+  textarea::placeholder { color: var(--text-sub); }
+  textarea:focus { border-color: var(--accent); }
+  .job-master-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .job-count-badge { font-size: 11px; font-family: 'DM Mono', monospace; background: rgba(79,126,255,0.15); color: var(--accent); border-radius: 20px; padding: 2px 10px; }
+  .job-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .filter-btn { font-size: 11px; padding: 3px 10px; border-radius: 20px; cursor: pointer; border: 1px solid var(--border); background: none; color: var(--text-sub); font-family: 'Noto Sans JP', sans-serif; transition: all 0.15s; }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(79,126,255,0.1); }
+  .job-table-wrap { max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  .job-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .job-table th { background: var(--surface2); color: var(--text-sub); font-weight: 500; padding: 8px 10px; text-align: left; font-size: 10px; letter-spacing: 0.5px; position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--border); }
+  .job-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; line-height: 1.4; }
+  .job-table tr:last-child td { border-bottom: none; }
+  .job-table tr:hover td { background: rgba(255,255,255,0.03); cursor: pointer; }
+  .job-table tr.row-selected td { background: rgba(79,126,255,0.08); }
+  .check-col { width: 28px; text-align: center; }
+  .job-check { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
+  .cat-tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
+  .select-info { font-size: 12px; color: var(--text-sub); text-align: center; padding: 6px; border: 1px dashed var(--border); border-radius: 8px; margin-top: 8px; }
+  .select-info span { color: var(--accent); font-weight: 700; }
+  .generate-btn { width: 100%; padding: 15px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; border-radius: var(--radius); color: #fff; font-family: 'Noto Sans JP', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.2s; letter-spacing: 0.5px; }
+  .generate-btn:hover { opacity: 0.9; }
+  .generate-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .spinner { display: none; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .panel-right { padding: 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 24px; }
+  .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--text-sub); text-align: center; }
+  .empty-icon { width: 60px; height: 60px; background: var(--surface2); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px; }
+  .result-title { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text-sub); display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .result-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .subject-cards { display: flex; flex-direction: column; gap: 8px; }
+  .subject-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; display: flex; align-items: flex-start; gap: 10px; transition: border-color 0.2s; }
+  .subject-card:hover { border-color: var(--accent); }
+  .subject-num { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-sub); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; min-width: 28px; text-align: center; margin-top: 2px; flex-shrink: 0; }
+  .subject-text { font-size: 13px; line-height: 1.6; flex: 1; }
+  .copy-btn-small { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-sub); font-size: 11px; padding: 4px 10px; cursor: pointer; font-family: 'Noto Sans JP', sans-serif; white-space: nowrap; transition: all 0.2s; flex-shrink: 0; }
+  .copy-btn-small:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-btn-small.copied { border-color: var(--success); color: var(--success); }
+  .matched-jobs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+  .matched-job-tag { display: flex; align-items: center; gap: 6px; background: rgba(79,126,255,0.08); border: 1px solid rgba(79,126,255,0.25); border-radius: 8px; padding: 5px 10px; font-size: 12px; }
+  .matched-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; flex-shrink: 0; }
+  .body-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .body-text { font-size: 13px; line-height: 1.95; white-space: pre-wrap; color: var(--text); }
+  .copy-btn-large { margin-top: 14px; width: 100%; padding: 10px; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text-sub); font-family: 'Noto Sans JP', sans-serif; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+  .copy-btn-large:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-btn-large.copied { border-color: var(--success); color: var(--success); }
+  .skeleton { background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  .error-msg { background: rgba(255,80,80,0.1); border: 1px solid rgba(255,80,80,0.3); border-radius: var(--radius); padding: 16px; font-size: 13px; color: #ff8080; line-height: 1.7; }
+  .loading-jobs { text-align: center; padding: 24px; color: var(--text-sub); font-size: 13px; }
+  .sheet-status { font-size: 11px; display: flex; align-items: center; gap: 6px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.ok { background: var(--success); }
+  .status-dot.err { background: #ff6b6b; }
+  .status-dot.loading { background: var(--gold); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo-mark">S</div>
+  <div class="logo-text">Scout<span>AI</span></div>
+  <div class="header-right">
+    <div class="sheet-status" id="sheetStatus">
+      <div class="status-dot loading" id="statusDot"></div>
+      <span id="statusText">スプレッドシートを読み込み中...</span>
+    </div>
+    <button class="sync-btn" id="syncBtn" onclick="loadJobsFromSheet()" disabled>🔄 再読み込み</button>
+    <div class="badge">PABLO Group · β版</div>
+  </div>
+</header>
+
+<div class="main">
+  <div class="panel-left">
+    <div class="api-notice">
+      ⚙️ Anthropic APIキーを入力してください
+      <input id="apiKeyInput" type="password" placeholder="sk-ant-api03-...">
+    </div>
+
+    <div>
+      <div class="section-label">候補者プロフィール</div>
+      <textarea id="profileInput" placeholder="求人媒体のプロフィールテキストをここに貼り付けてください。&#10;&#10;例）27歳 / 男性 / 大阪府&#10;株式会社ネクステージ / 販売営業・副店長&#10;希望職種：人材・採用 / 法人営業..."></textarea>
+    </div>
+
+    <div>
+      <div class="job-master-header">
+        <div class="section-label" style="margin-bottom:0">求人マスタ <span style="color:var(--text-sub);font-weight:300">（Googleスプレッドシート連携）</span></div>
+        <div class="job-count-badge" id="jobCountBadge">読込中</div>
+      </div>
+      <div class="job-filter" id="filterArea">
+        <button class="filter-btn active" onclick="filterJobs('all',this)">すべて</button>
+      </div>
+      <div class="job-table-wrap">
+        <table class="job-table">
+          <thead><tr>
+            <th class="check-col"><input type="checkbox" id="checkAll" class="job-check" onchange="toggleAll(this)"></th>
+            <th>カテゴリ</th><th>企業名</th><th>ポジション</th><th>年収</th>
+          </tr></thead>
+          <tbody id="jobTbody">
+            <tr><td colspan="5"><div class="loading-jobs">⏳ スプレッドシートから求人を読み込んでいます...</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="select-info" id="selectInfo">チェックなし → AIが全件から自動選択します</div>
+    </div>
+
+    <button class="generate-btn" id="generateBtn" onclick="generate()" disabled>
+      <span id="btnText">✦ スカウト文面を生成する</span>
+      <div class="spinner" id="spinner"></div>
+    </button>
+  </div>
+
+  <div class="panel-right" id="outputPanel">
+    <div class="empty-state">
+      <div class="empty-icon">✦</div>
+      <p>候補者情報を貼り付けて<br>「生成する」を押してください<br><br><span style="font-size:12px">求人はスプレッドシートから<br>自動で読み込まれます</span></p>
+    </div>
+  </div>
+</div>
+
+<script>
+const SHEET_API = 'https://script.google.com/macros/s/AKfycbwrACEaTgYEEXkfHWj-qp4HudKgnfAGiRnprunXK1M61xDuR1n8JWzWBHzlO9Afk6tZmw/exec';
+
+// カテゴリ → カラークラスのマッピング
+const CAT_COLOR = {
+  '人材': 'c1', 'IT': 'c2', 'コンサル': 'c3', '不動産': 'c4',
+  '製造業': 'c5', '小売': 'c6', 'M&A': 'c7',
+  'ITコンサル': 'c2', 'AIコンサル': 'c3', 'フィールドセールス': 'c5',
+};
+const CAT_STYLE = {
+  c1:'background:rgba(79,126,255,0.2);color:#8aabff',
+  c2:'background:rgba(62,207,142,0.2);color:#6de0aa',
+  c3:'background:rgba(240,192,64,0.2);color:#f0c040',
+  c4:'background:rgba(255,120,80,0.2);color:#ff9070',
+  c5:'background:rgba(160,120,255,0.2);color:#c0a0ff',
+  c6:'background:rgba(80,200,220,0.2);color:#80d8e8',
+  c7:'background:rgba(255,80,120,0.2);color:#ff80a0',
+};
+
+let JOBS = [];
+let filteredIdxs = [];
+let currentFilter = 'all';
+
+// ===== スプレッドシートから求人を読み込む =====
+async function loadJobsFromSheet() {
+  setSheetStatus('loading', 'スプレッドシートを読み込み中...');
+  document.getElementById('syncBtn').disabled = true;
+  document.getElementById('generateBtn').disabled = true;
+  document.getElementById('jobTbody').innerHTML = '<tr><td colspan="5"><div class="loading-jobs">⏳ 読み込み中...</div></td></tr>';
+
+  try {
+    const res = await fetch(SHEET_API);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    if (!Array.isArray(data) || data.length === 0) throw new Error('データが空です');
+
+    JOBS = data.map(row => ({
+      cat:      String(row.cat || row['カテゴリ'] || ''),
+      company:  String(row.company || row['企業名'] || ''),
+      position: String(row.position || row['ポジション'] || ''),
+      content:  String(row.content || row['業務内容'] || ''),
+      salary:   String(row.salary || row['年収'] || ''),
+    })).filter(j => j.company);
+
+    filteredIdxs = JOBS.map((_,i)=>i);
+    setSheetStatus('ok', `${JOBS.length}件を読み込みました`);
+    buildFilterButtons();
+    renderTable();
+    document.getElementById('generateBtn').disabled = false;
+    document.getElementById('syncBtn').disabled = false;
+
+  } catch(err) {
+    setSheetStatus('err', '読み込み失敗: ' + err.message);
+    document.getElementById('jobTbody').innerHTML = `<tr><td colspan="5"><div class="loading-jobs" style="color:#ff8080">⚠️ 読み込みに失敗しました<br><small>${err.message}</small></div></td></tr>`;
+    document.getElementById('syncBtn').disabled = false;
+  }
+}
+
+function setSheetStatus(type, text) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'status-dot ' + type;
+  txt.textContent = text;
+}
+
+// ===== フィルターボタンを動的生成 =====
+function buildFilterButtons() {
+  const cats = ['all', ...new Set(JOBS.map(j=>j.cat).filter(Boolean))];
+  const area = document.getElementById('filterArea');
+  area.innerHTML = cats.map(cat =>
+    `<button class="filter-btn${cat==='all'?' active':''}" onclick="filterJobs('${cat}',this)">${cat==='all'?'すべて':cat}</button>`
+  ).join('');
+}
+
+function filterJobs(cat, btn) {
+  currentFilter = cat;
+  filteredIdxs = cat==='all' ? JOBS.map((_,i)=>i) : JOBS.map((_,i)=>i).filter(i=>JOBS[i].cat===cat||JOBS[i].cat.includes(cat));
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('jobTbody');
+  if (filteredIdxs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="loading-jobs">該当する求人がありません</div></td></tr>';
+    document.getElementById('jobCountBadge').textContent = '0件';
+    return;
+  }
+  tbody.innerHTML = '';
+  filteredIdxs.forEach(idx => {
+    const j = JOBS[idx];
+    const cc = CAT_COLOR[j.cat] || 'c2';
+    const style = CAT_STYLE[cc] || CAT_STYLE.c2;
+    const tr = document.createElement('tr');
+    tr.dataset.idx = idx;
+    tr.innerHTML = `
+      <td class="check-col"><input type="checkbox" class="job-check" data-idx="${idx}" onchange="updateInfo()"></td>
+      <td><span class="cat-tag" style="${style}">${j.cat}</span></td>
+      <td style="font-size:11px">${esc(j.company)}</td>
+      <td style="font-size:11px;color:var(--text-sub)">${esc(j.position)}</td>
+      <td style="font-size:10px;white-space:nowrap;color:var(--text-sub)">${esc(j.salary)}</td>`;
+    tr.onclick = e => {
+      if (e.target.type==='checkbox') return;
+      const cb = tr.querySelector('.job-check');
+      cb.checked = !cb.checked;
+      tr.classList.toggle('row-selected', cb.checked);
+      updateInfo();
+    };
+    tbody.appendChild(tr);
+  });
+  document.getElementById('jobCountBadge').textContent = filteredIdxs.length + '件';
+  updateInfo();
+}
+
+function toggleAll(cb) {
+  document.querySelectorAll('.job-check:not(#checkAll)').forEach(c => {
+    c.checked = cb.checked;
+    c.closest('tr').classList.toggle('row-selected', cb.checked);
+  });
+  updateInfo();
+}
+
+function updateInfo() {
+  const sel = getSelected();
+  const info = document.getElementById('selectInfo');
+  info.innerHTML = sel.length===0
+    ? 'チェックなし → AIが全件から自動選択します'
+    : `<span>${sel.length}件</span>を選択 → この中からAIが最適なものを提案`;
+}
+
+function getSelected() {
+  return Array.from(document.querySelectorAll('.job-check:not(#checkAll):checked')).map(cb => JOBS[parseInt(cb.dataset.idx)]);
+}
+
+// ===== 生成 =====
+async function generate() {
+  const apiKey = document.getElementById('apiKeyInput').value.trim();
+  const profile = document.getElementById('profileInput').value.trim();
+  if (!apiKey) { alert('APIキーを入力してください'); return; }
+  if (!profile) { alert('候補者プロフィールを入力してください'); return; }
+  if (JOBS.length === 0) { alert('求人データが読み込まれていません'); return; }
+
+  const sel = getSelected();
+  const pool = sel.length > 0 ? sel : JOBS;
+
+  setLoading(true);
+  showSkeleton();
+
+  const jobsText = pool.map((j,i) => `[${i+1}] ${j.company} / ${j.position} / ${j.content} / 年収${j.salary}`).join('\n');
+
+  const prompt = `あなたは中途採用の優秀なリクルーティングエージェントです。
+候補者プロフィールと求人リストをもとに、効果的なスカウトメッセージを生成してください。
+
+【候補者プロフィール】
+${profile}
+
+【求人リスト（${pool.length}件）】
+${jobsText}
+
+【タスク】
+1. 求人リストから候補者に最もマッチする3件を選ぶ（年収条件に合う求人が2件しかない場合は2件でも可）
+   【年収マッチングルール（最優先）】
+   - 候補者プロフィールに「現年収」「希望年収」の記載があればそれを参照する
+   - 記載がない場合は経験年数・役職・業界から現年収を推定する
+   - 選ぶ求人の年収レンジは「現年収以上」かつ「希望年収の範囲内」に収まるものを優先する
+   - 現年収を大幅に下回る求人は絶対に選ばないこと
+   - 年収が候補者に合わない求人しかない場合は、最も近いものを選び本文内でその点に触れること
+2. スカウト件名を3案作成（🔶絵文字使用、候補者の具体的実績の数字を必ず入れる）
+3. 本文を1つ作成
+
+【本文構成（必ず守ること）】
+①冒頭：候補者の具体的実績・スキルへの共感と評価（2〜3文）
+②▼ご提案したいキャリアの可能性（箇条書き2〜3点、候補者の強みの活かし方）
+③▼具体的な求人提案（選んだ求人をこのフォーマットで）：
+―――――――――――――――――――――
+【会社名】：
+【ポジション】：
+【業務内容】：
+【年収】：
+―――――――――――――――――――――
+④▼今回のご転職活動のポイント（■ポイント①②：候補者固有の懸念先出し＋エージェントとしての解決策）
+
+【文体】丁寧・フォーマル。候補者を尊重。具体的な数字・実績を積極的に引用。
+
+必ずJSONのみで返答（前後のテキスト・バッククォート一切不要）:
+{"subjects":["件名1","件名2","件名3"],"matched_jobs":["会社名1","会社名2","会社名3"],"body":"本文全文"}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4000, messages: [{ role: 'user', content: prompt }] })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || 'APIエラー');
+    const text = data.content.map(b => b.text || '').join('');
+    const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+    showResult(result);
+  } catch(err) {
+    showError(err.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function setLoading(on) {
+  document.getElementById('generateBtn').disabled = on;
+  document.getElementById('btnText').style.display = on ? 'none' : 'block';
+  document.getElementById('spinner').style.display = on ? 'block' : 'none';
+}
+
+function showSkeleton() {
+  document.getElementById('outputPanel').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:24px">
+      <div><div class="section-label">件名案を生成中...</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="skeleton" style="height:52px"></div>
+          <div class="skeleton" style="height:52px"></div>
+          <div class="skeleton" style="height:52px"></div>
+        </div></div>
+      <div><div class="section-label">本文を生成中...</div>
+        <div class="skeleton" style="height:420px"></div></div>
+    </div>`;
+}
+
+function showResult(r) {
+  const p = document.getElementById('outputPanel');
+  const subs = r.subjects.map((s,i) => `
+    <div class="subject-card">
+      <div class="subject-num">案${i+1}</div>
+      <div class="subject-text">${esc(s)}</div>
+      <button class="copy-btn-small" onclick="cp(this,\`${escJ(s)}\`)">コピー</button>
+    </div>`).join('');
+  const matched = (r.matched_jobs||[]).map(j =>
+    `<div class="matched-job-tag"><div class="matched-dot"></div><span>${esc(j)}</span></div>`).join('');
+  p.innerHTML = `
+    <div><div class="result-title">件名 3案</div><div class="subject-cards">${subs}</div></div>
+    ${matched ? `<div><div class="result-title">AIが選んだ求人</div><div class="matched-jobs">${matched}</div></div>` : ''}
+    <div><div class="result-title">本文</div>
+      <div class="body-card">
+        <div class="body-text" id="bodyText">${esc(r.body)}</div>
+        <button class="copy-btn-large" onclick="cp(this,document.getElementById('bodyText').innerText)">📋 本文をコピー</button>
+      </div></div>`;
+}
+
+function showError(msg) {
+  document.getElementById('outputPanel').innerHTML =
+    `<div class="error-msg">⚠️ エラー：${esc(msg)}<br><br>内容を確認して再試行してください。</div>`;
+}
+
+function cp(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const o = btn.textContent; btn.textContent = '✓ コピー完了'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = o; btn.classList.remove('copied'); }, 2000);
+  });
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escJ(s) { return String(s).replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$'); }
+
+// ===== 起動時に自動読み込み =====
+loadJobsFromSheet();
+</script>
+</body>
+</html>
